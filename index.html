@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Milk Tracker</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f8fb;--card:#fff;--tx:#1b2430;--mu:#6b7785;--ac:#2563eb;--ln:#e3e8ef}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151c;--card:#1a212b;--tx:#e8edf3;--mu:#93a0b0;--ac:#5b8cff;--ln:#2a3340}}
+:root[data-theme="dark"]{--bg:#10151c;--card:#1a212b;--tx:#e8edf3;--mu:#93a0b0;--ac:#5b8cff;--ln:#2a3340}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Roboto,sans-serif}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:12px 16px;z-index:2}
+.nav{display:flex;align-items:center;justify-content:space-between}
+.nav h1{font-size:20px;margin:0}
+button{font:inherit;border:0;cursor:pointer;color:inherit}
+.arrow{background:var(--card);border:1px solid var(--ln);width:44px;height:44px;border-radius:12px;font-size:20px}
+.total{width:100%;margin-top:10px;background:var(--ac);color:#fff;border-radius:14px;padding:14px;font-size:16px;font-weight:600}
+main{padding:0 16px 24px}
+.day{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;margin-bottom:8px;width:100%;text-align:left}
+.day.today{border-color:var(--ac)}
+.day b{font-size:16px}.day span{color:var(--mu);font-size:14px}
+.day .l{font-size:17px;font-weight:600;color:var(--tx)}
+.day .l.z{color:var(--mu);font-weight:400}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.ov.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet.c{border-radius:20px;margin:auto;width:calc(100% - 32px);text-align:center}
+.sheet h2{margin:0 0 12px;font-size:18px}
+.row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--ln)}
+.row .n{font-size:17px;font-weight:600}
+.ctl{display:flex;align-items:center;gap:14px}
+.ctl button{width:44px;height:44px;border-radius:50%;background:var(--bg);border:1px solid var(--ln);font-size:22px}
+.ctl button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.ctl .q{min-width:24px;text-align:center;font-size:18px;font-weight:600}
+.sum{display:flex;justify-content:space-between;font-size:18px;font-weight:700;padding:14px 0 4px}
+.done{width:100%;margin-top:10px;background:var(--ac);color:#fff;border-radius:14px;padding:14px;font-weight:600}
+.big{font-size:44px;font-weight:700;color:var(--ac);margin:8px 0}
+</style></head>
+<body>
+<header>
+  <div class="nav"><button class="arrow" id="prev">‹</button><h1 id="mt"></h1><button class="arrow" id="next">›</button></div>
+  <button class="total" id="tot">🥛 Show total litres this month</button>
+</header>
+<main id="list"></main>
+
+<div class="ov" id="ov1"><div class="sheet">
+  <h2 id="dt"></h2><div id="rows"></div>
+  <div class="sum"><span>Day total</span><span id="dtot"></span></div>
+  <button class="done" id="d1">Done</button>
+</div></div>
+
+<div class="ov" id="ov2"><div class="sheet c">
+  <h2 id="mt2"></h2><div class="big" id="mtot"></div><div id="mdays" style="color:var(--mu)"></div>
+  <label style="display:block;margin:16px 0 6px;text-align:left;color:var(--mu)">Price per litre</label>
+  <input id="ppl" type="number" inputmode="decimal" min="0" step="any" placeholder="e.g. 60" style="width:100%;font:inherit;font-size:18px;padding:12px;border-radius:12px;border:1px solid var(--ln);background:var(--bg);color:var(--tx)">
+  <div class="sum"><span>Total price</span><span id="mprice">—</span></div>
+  <button class="done" id="d2">Close</button>
+</div></div>
+
+<script>
+const SIZES=[250,500,750,1000], LABEL={250:"250 ml",500:"500 ml",750:"750 ml",1000:"1 L"};
+const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+let data={};
+try{data=JSON.parse(localStorage.getItem("milk")||"{}")}catch(e){data={}}
+const save=()=>{try{localStorage.setItem("milk",JSON.stringify(data))}catch(e){}};
+const now=new Date();let y=now.getFullYear(),m=now.getMonth(),sel=null;
+const $=id=>document.getElementById(id);
+const key=d=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+const ml=k=>SIZES.reduce((s,z)=>s+z*((data[k]||{})[z]||0),0);
+const fmt=v=>(v/1000).toFixed(2).replace(/\.?0+$/,"")+" L";
+function render(){
+  $("mt").textContent=MN[m]+" "+y;
+  const n=new Date(y,m+1,0).getDate();let h="";
+  for(let d=1;d<=n;d++){
+    const k=key(d),v=ml(k),wd=new Date(y,m,d).toLocaleDateString(undefined,{weekday:"short"});
+    const t=(d===now.getDate()&&m===now.getMonth()&&y===now.getFullYear())?" today":"";
+    h+=`<button class="day${t}" data-d="${d}"><div><b>${d}</b> <span>${wd}</span></div><div class="l${v?"":" z"}">${v?fmt(v):"—"}</div></button>`;
+  }
+  $("list").innerHTML=h;
+}
+function sheet(){
+  const k=key(sel);$("dt").textContent=`${sel} ${MN[m]} ${y}`;
+  $("rows").innerHTML=SIZES.map(z=>`<div class="row"><span class="n">${LABEL[z]}</span><div class="ctl"><button data-z="${z}" data-s="-1">−</button><span class="q">${(data[k]||{})[z]||0}</span><button class="p" data-z="${z}" data-s="1">+</button></div></div>`).join("");
+  $("dtot").textContent=fmt(ml(k));
+}
+$("list").onclick=e=>{const b=e.target.closest(".day");if(!b)return;sel=+b.dataset.d;sheet();$("ov1").classList.add("on")};
+$("rows").onclick=e=>{const b=e.target.closest("button");if(!b)return;
+  const k=key(sel),z=b.dataset.z;data[k]=data[k]||{};
+  data[k][z]=Math.max(0,(data[k][z]||0)+ +b.dataset.s);save();sheet();};
+$("d1").onclick=()=>{$("ov1").classList.remove("on");render()};
+let monthMl=0;
+function price(){
+  const p=parseFloat($("ppl").value);
+  try{localStorage.setItem("milkPrice",$("ppl").value)}catch(e){}
+  $("mprice").textContent=isNaN(p)?"—":(monthMl/1000*p).toFixed(2);
+}
+$("ppl").oninput=price;
+$("tot").onclick=()=>{
+  try{$("ppl").value=localStorage.getItem("milkPrice")||""}catch(e){}
+  const n=new Date(y,m+1,0).getDate();let t=0,c=0;
+  for(let d=1;d<=n;d++){const v=ml(key(d));t+=v;if(v)c++}
+  $("mt2").textContent=`Total – ${MN[m]} ${y}`;$("mtot").textContent=fmt(t);
+  $("mdays").textContent=`Milk taken on ${c} day${c==1?"":"s"}`;monthMl=t;price();$("ov2").classList.add("on");
+};
+$("d2").onclick=()=>$("ov2").classList.remove("on");
+$("prev").onclick=()=>{m--;if(m<0){m=11;y--}render()};
+$("next").onclick=()=>{m++;if(m>11){m=0;y++}render()};
+render();
+</script></body></html>
